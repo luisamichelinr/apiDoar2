@@ -65,7 +65,7 @@ def criar_usuarios():
             return jsonify({'message': 'Você não pode estar logado para criar um novo usuário'})
 
         # Verifica se o nome está vazio
-        if nome == None or nome == "":
+        if nome == None or nome == "" or nome == " ":
             return jsonify({"error": "Nome é uma informação obrigatória."}), 400
 
         # Verifica se o CPF já está cadastrado
@@ -210,7 +210,7 @@ def editar_usuarios(id_usuarios):
         codigo_confirmacao = tem_usuario[20]
         tentativa = tem_usuario[21]
 
-        if nome == None or nome == "":
+        if nome == None or nome == ""  or nome == " ":
             return jsonify({"error": "Nome é uma informação obrigatória."}), 400
 
         if verificar_existente(cpf_cnpj, 1, id_usuarios) == False:
@@ -540,7 +540,7 @@ def login():
         ativo = usuario[7]
 
 
-        if tentativa > 3:
+        if tentativa > 3 and tipo != 0:
             return jsonify(
                 {"error": "Esse usuário está bloqueado! Entre em contato com o administrador"}
             ), 400
@@ -577,12 +577,12 @@ def login():
                             max_age=3600)
             return resp
 
-
-        tentativa = tentativa + 1
-        cur.execute("""UPDATE USUARIOS
-                       SET TENTATIVA = ?
-                       WHERE ID_USUARIOS = ?""", (tentativa, id_usuarios))
-        con.commit()
+        if tipo != 0:
+            tentativa = tentativa + 1
+            cur.execute("""UPDATE USUARIOS
+                           SET TENTATIVA = ?
+                           WHERE ID_USUARIOS = ?""", (tentativa, id_usuarios))
+            con.commit()
 
         return jsonify({"error": "Senha incorreta"}), 400
 
@@ -682,8 +682,6 @@ def esqueci_senha():
         usuario = cursor.fetchone()
 
         if not usuario:
-            # Por segurança, muitas APIs retornam 200 mesmo se não achar,
-            # mas aqui mantemos sua lógica de feedback.
             return jsonify(mensagem="Usuário não encontrado"), 404
 
         id_usuarios = usuario[0]
