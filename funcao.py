@@ -17,41 +17,50 @@ import datetime
 def verificar_existente(valor, tipo, id_usuarios = None):
     # Por padrão, o id_usuario é none (quando não passamos na hora de chamar a função)
 
+    # Cria conexão com o banco
     con = conexao()
     cur = con.cursor()
     try:
 
+        # Verifica CPF/CNPJ
         if tipo == 1:
+            # Se estiver editando um usuário (ignora o próprio id)
             if id_usuarios:
                 cur.execute("""SELECT 1
                                FROM USUARIOS
                                WHERE CPF_CNPJ = ? AND ID_USUARIOS != ?""", (valor, id_usuarios))
-
             else:
+                # Verifica se já existe
                 cur.execute("""SELECT 1
                            FROM USUARIOS
                            WHERE CPF_CNPJ = ?""", (valor,))
 
+        # Verifica e-mail
         elif tipo == 2:
+            # Se estiver editando (ignora o próprio id)
             if id_usuarios:
                 cur.execute("""SELECT 1
                                FROM USUARIOS
                                WHERE EMAIL = ? AND ID_USUARIOS != ?""", (valor, id_usuarios))
-
             else:
+                # Verifica se já existe
                 cur.execute("""SELECT 1
                            FROM USUARIOS
                            WHERE EMAIL = ?""", (valor, ))
 
+        # Se não encontrou, pode usar
         if not cur.fetchone():
             return True
         return False
+
     except Exception as e:
         return False
     finally:
         cur.close()
         con.close()
 
+
+# Verifica se as senhas são iguais
 def senha_correspondente(senha, confirmar_senha):
     try:
         if senha == confirmar_senha:
@@ -61,16 +70,22 @@ def senha_correspondente(senha, confirmar_senha):
         return False
 
 
+# Verifica se a senha é forte
 def senha_forte(senha):
     try:
+        # Verifica tamanho mínimo
         if len(senha) < 8:
             return False
+
+        # Critérios da senha
         criterios = {
             "maiuscula": False,
             "minuscula": False,
             "numero": False,
             "especial": False
         }
+
+        # Percorre cada caractere
         for s in senha:
             if s.isupper():
                 criterios["maiuscula"] = True
@@ -80,23 +95,33 @@ def senha_forte(senha):
                 criterios["numero"] = True
             elif s.isalnum() is False:
                 criterios["especial"] = True
+
+        # Verifica se todos os critérios foram atendidos
         if criterios["maiuscula"] == True and criterios["minuscula"] == True and criterios["numero"] == True and criterios["especial"] == True:
             return True
+
         return False
+
     except Exception as e:
         return False
 
+
+# Verifica se a senha já foi usada antes
 def senha_antiga(id_usuarios, nova_senha):
+    # Cria conexão
     con = conexao()
     cursor = con.cursor()
     try:
+        # Busca senha atual
         cursor.execute('SELECT senha FROM usuarios WHERE id_usuarios = ?', (id_usuarios, ))
         senha_atual_hash = cursor.fetchone()[0]
 
+        # Busca últimas senhas usadas
         cursor.execute('SELECT FIRST 2 SENHA_HASH FROM HISTORICO_SENHA WHERE id_usuarios = ? ORDER BY DATA_ALTERACAO',
                    (id_usuarios,))
         ultimas_senhas = cursor.fetchall()
 
+        # Busca a senha mais antiga do histórico
         cursor.execute(
             'SELECT FIRST 1 ID_HISTORICO_SENHA FROM HISTORICO_SENHA WHERE id_usuarios = ? ORDER BY DATA_ALTERACAO ASC',
             (id_usuarios,))
@@ -105,27 +130,32 @@ def senha_antiga(id_usuarios, nova_senha):
         if tem_senha:
             senha_mais_antiga = tem_senha[0]
 
+        # Verifica se a nova senha já foi usada
         for u in ultimas_senhas:
             senha_antiga = u[0]
             if check_password_hash(senha_antiga, nova_senha):
                 return False
 
+        # Verifica com a senha atual
         if check_password_hash(senha_atual_hash, nova_senha):
             return False
 
+        # Data da alteração
         data_alteracao = datetime.datetime.utcnow()
 
+        # Salva senha atual no histórico
         cursor.execute("INSERT INTO HISTORICO_SENHA(id_usuarios, SENHA_HASH, data_Alteracao) VALUES(?, ?, ?)",
                        (id_usuarios, senha_atual_hash, data_alteracao))
 
+        # Remove códigos de recuperação antigos
         cursor.execute('DELETE FROM RECUPERACAO_SENHA WHERE id_usuarios = ?', (id_usuarios,))
 
+        # Mantém apenas as últimas 2 senhas no histórico
         if ultimas_senhas:
             if len(ultimas_senhas) == 2:
                 cursor.execute(""" DELETE FROM HISTORICO_SENHA
                                    WHERE ID_HISTORICO_SENHA = ?""",
                                (senha_mais_antiga,))
-
 
         con.commit()
 
@@ -136,44 +166,70 @@ def senha_antiga(id_usuarios, nova_senha):
         return False
 
 
+# Função para enviar e-mail
 def enviando_email(destinatario, assunto, html):
-    user = 'luisa.michelinr@gmail.com'
-    senha = 'hqca hibi tndj trfk'
+    # Dados do remetente
+    user = 'doar.plataformadoacoes@gmail.com'
+    senha = 'xspw vjbv mnai fvlr'
 
-    msg = MIMEMultipart()
+    # Monta mensagem
+    msg = MIMEText(html, 'html')
     msg['From'] = user
     msg['To'] = destinatario
     msg['Subject'] = assunto
-    msg.attach(MIMEText(html, 'html'))
-
 
     try:
+        # Conecta no servidor SMTP
         server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+
+        # Faz login
         server.login(user, senha)
+
+        # Envia e-mail
         server.sendmail(user, [destinatario], msg.as_string())
     finally:
         server.quit()
 
 
+# Gera token de autenticação
 def gerar_token(tipo, id_usuarios, tempo):
+    # Dados do token
     payload = { 'tipo': tipo,
                 'id_usuarios': id_usuarios,
                 'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=tempo)
                }
+
+    # Chave secreta
     senha_secreta = current_app.config['SECRET_KEY']
+
+    # Cria token
     token = jwt.encode(payload, senha_secreta, algorithm='HS256')
 
     return token
 
+
+# Decodifica token
 def decodificar_token():
     try:
+        # Pega token do cookie
         token = request.cookies.get("acess_token")
+
+        # Verifica se existe
         if not token:
             return False
+
+        # Chave secreta
         senha_secreta = current_app.config['SECRET_KEY']
+
+        # Decodifica token
         payload = jwt.decode(token, senha_secreta, algorithms=['HS256'])
+
         return {'tipo': payload['tipo'], 'id_usuarios': payload['id_usuarios']}
+
+    # Token expirado
     except jwt.ExpiredSignatureError:
         return False
+
+    # Token inválido
     except jwt.InvalidTokenError:
         return False
