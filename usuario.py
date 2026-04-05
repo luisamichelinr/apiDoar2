@@ -62,7 +62,7 @@ def criar_usuarios():
         # Verifica se o usuário está logado (decodificar é false)
         # e se ele não é adm (tipo 0)
         if decodificar_token() != False and decodificar_token()['tipo'] != 0:
-            return jsonify({'message': 'Você não pode estar logado para criar um novo usuário'})
+            return jsonify({'error': 'Você não pode estar logado para criar um novo usuário'})
 
         # Verifica se o nome está vazio
         if nome == None:
