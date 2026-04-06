@@ -170,7 +170,7 @@ def senha_antiga(id_usuarios, nova_senha):
 def enviando_email(destinatario, assunto, html):
     # Dados do remetente
     user = 'doar.plataformadoacoes@gmail.com'
-    senha = 'xspw vjbv mnai fvlr'
+    senha = 'jxwf uxid qaga hhah'
 
     # Monta mensagem
     msg = MIMEText(html, 'html')
