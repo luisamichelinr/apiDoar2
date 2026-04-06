@@ -81,11 +81,9 @@ def criar_usuarios():
         if cpf_cnpj_sem_espacos == '':
             return jsonify({"error": "CPF/CNPJ é uma informação obrigatória."}), 400
 
-        # =====================================================
-        # VALIDAÇÃO DE EMAIL - MODIFICADA PARA ACEITAR VAZIO PARA ONG
-        # =====================================================
-        if tipo == 1:  # Apenas para DOADOR (tipo 1)
-            # Verifica se o email está vazio
+
+        if tipo == 1:
+
             if email == None:
                 return jsonify({"error": "E-mail é uma informação obrigatória para doador."}), 400
 
@@ -93,31 +91,27 @@ def criar_usuarios():
             if email_sem_espacos == '':
                 return jsonify({"error": "E-mail é uma informação obrigatória para doador."}), 400
 
-            # Verifica se o e-mail já está cadastrado (apenas para doador)
+
             if verificar_existente(email, 2) == False:
                 return jsonify({"error": "E-mail já cadastrado"}), 400
         else:
-            # Para ONG (tipo 2), se não tiver email, cria um automático
+
             if email == None or email.strip() == '':
                 email = f"{cpf_cnpj}@ong.doar.com"
                 print(f"Email automático gerado para ONG: {email}")
 
-            # Verifica se o e-mail já está cadastrado (apenas se não for vazio)
+
             if email and email.strip() != '':
                 if verificar_existente(email, 2) == False:
-                    # Se o email já existe, cria um com timestamp
+
                     email = f"{cpf_cnpj}_{int(datetime.datetime.now().timestamp())}@ong.doar.com"
                     print(f"Email alterado para não conflitar: {email}")
 
-        # =====================================================
-        # FIM DA VALIDAÇÃO DE EMAIL MODIFICADA
-        # =====================================================
 
-        # Verifica se o CPF/CNPJ já está cadastrado
         if verificar_existente(cpf_cnpj, 1) == False:
             return jsonify({"error": "CPF ou CNPJ já cadastrado."}), 400
 
-        # Verifica se a senha é forte
+
         if senha_forte(senha) == False:
             return jsonify({
                 "error": "Senha fraca. A senha deve conter pelo menos 8 caracteres, incluindo letras maiúsculas, minúsculas, números e caracteres especiais."}), 400
