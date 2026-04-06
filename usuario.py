@@ -150,21 +150,21 @@ def criar_usuarios():
             # Salva a imagem no diretório
             foto_perfil.save(caminho_imagem)
 
-            # Define assunto e mensagem do e-mail
-            assunto = 'Código de Confirmação de E-mail'
-            mensagem = 'Bem-vindo(a) à Doar +! Para prosseguir, é necessário confirmar seu e-mail'
-            codigo = codigo_confirmacao
+        # Define assunto e mensagem do e-mail
+        assunto = 'Código de Confirmação de E-mail'
+        mensagem = 'Bem-vindo(a) à Doar +! Para prosseguir, é necessário confirmar seu e-mail'
+        codigo = codigo_confirmacao
 
-            # Renderiza o template HTML do e-mail
-            html = render_template('template_email.html', mensagem=mensagem, codigo=codigo)
+        # Renderiza o template HTML do e-mail
+        html = render_template('template_email.html', mensagem=mensagem, codigo=codigo)
 
-            # Envia o e-mail em uma thread separada
-            threading.Thread(target=enviando_email,
-                             args=(email, assunto, html)
-                             ).start()
+        # Envia o e-mail em uma thread separada
+        threading.Thread(target=enviando_email,
+                         args=(email, assunto, html)
+                         ).start()
 
-            # Retorna sucesso com os dados do usuário
-            return jsonify({'message': "Usuário cadastrado com sucesso",
+        # Retorna sucesso com os dados do usuário
+        return jsonify({'message': "Usuário cadastrado com sucesso",
                             'usuario': {
                                 'tipo': tipo,
                                 'nome': nome,
@@ -183,7 +183,7 @@ def criar_usuarios():
                             }
                             }), 201
     except Exception as e:
-        return jsonify(mensagem=f'Erro ao consultar o banco de dados: {e}'), 500
+        return jsonify({'message': f'Erro ao consultar o banco de dados: {e}'}), 500
     finally:
         cur.close()
         con.close()
@@ -200,11 +200,11 @@ def editar_usuarios(id_usuarios):
     try:
         # Verifica se o token existe
         if decodificar_token() == False:
-            return jsonify({'message': 'Token necessário'}), 401
+            return jsonify({'error': 'Token necessário'}), 401
 
         # Verifica se o usuário é o dono da conta ou administrador
         if decodificar_token()['id_usuarios'] != id_usuarios and decodificar_token()['tipo'] != 0:
-            return jsonify({'message': 'Token necessário'}), 401
+            return jsonify({'error': 'Token necessário'}), 401
 
         # Busca os dados atuais do usuário
         cur.execute("""SELECT ID_USUARIOS,
@@ -399,7 +399,7 @@ def editar_usuarios(id_usuarios):
                         }
                         }), 201
     except Exception as e:
-        return jsonify(mensagem=f'Erro ao consultar o banco de dados: {e}'), 500
+        return jsonify({'message': f'Erro ao consultar o banco de dados: {e}'}), 500
     finally:
         cur.close()
         con.close()
@@ -417,11 +417,11 @@ def deletar_usuarios(id_usuarios):
     try:
         # Verifica se o token existe
         if decodificar_token() == False:
-            return jsonify({'message': 'Token necessário'}), 401
+            return jsonify({'error': 'Token necessário'}), 401
 
         # Verifica se é administrador ou o próprio usuário
         if decodificar_token()['tipo'] != 0 and decodificar_token()['id_usuarios'] != id_usuarios:
-            return jsonify({'message': 'É necessário ser administrador para isso'}), 401
+            return jsonify({'error': 'É necessário ser administrador para isso'}), 401
 
         # Verifica se o usuário existe
         cur.execute("""SELECT ID_USUARIOS
@@ -458,10 +458,10 @@ def deletar_usuarios(id_usuarios):
         con.commit()
 
         # Retorna sucesso
-        return jsonify({"message": "Usuário excluído com sucesso"})
+        return jsonify({"error": "Usuário excluído com sucesso"})
 
     except Exception as e:
-        return jsonify(mensagem=f'Erro ao consultar o banco de dados: {e}'), 500
+        return jsonify({'message': f'Erro ao consultar o banco de dados: {e}'}), 500
     finally:
         cur.close()
         con.close()
@@ -479,7 +479,7 @@ def ativar_usuarios(id_usuarios):
     try:
         # Verifica se o token existe
         if decodificar_token() == False:
-            return jsonify({'message': 'Token necessário'}), 401
+            return jsonify({'error': 'Token necessário'}), 401
 
         # Apenas administrador pode ativar
         if decodificar_token()['tipo'] == 0:
@@ -490,9 +490,9 @@ def ativar_usuarios(id_usuarios):
             # Confirma alteração
             con.commit()
 
-            return jsonify({'mensagem': 'Usuário ativado com sucesso!'})
+            return jsonify({'message': 'Usuário ativado com sucesso!'})
 
-        return jsonify({'mensagem': 'É necessário ser administrador'})
+        return jsonify({'message': 'É necessário ser administrador'})
     finally:
         cur.close()
         con.close()
@@ -510,11 +510,11 @@ def inativar_usuarios(id_usuarios):
     try:
         # Verifica token
         if decodificar_token() == False:
-            return jsonify({'message': 'Token necessário'}), 401
+            return jsonify({'error': 'Token necessário'}), 401
 
         # Verifica permissão
         if decodificar_token()['tipo'] != 0 and decodificar_token()['id_usuarios'] != id_usuarios:
-            return jsonify({'message': 'É necessário ser administrador para isso'}), 401
+            return jsonify({'error': 'É necessário ser administrador para isso'}), 401
 
         # Verifica se usuário existe
         cur.execute("""SELECT ID_USUARIOS
@@ -535,7 +535,7 @@ def inativar_usuarios(id_usuarios):
         return jsonify({"message": "Usuário inativado com sucesso"})
 
     except Exception as e:
-        return jsonify(mensagem=f'Erro ao consultar o banco de dados: {e}'), 500
+        return jsonify({'message': f'Erro ao consultar o banco de dados: {e}'}), 500
     finally:
         cur.close()
         con.close()
@@ -553,11 +553,11 @@ def listar_usuarios():
     try:
         # Verifica token
         if decodificar_token() == False:
-            return jsonify({'message': 'Token necessário'}), 401
+            return jsonify({'error': 'Token necessário'}), 401
 
         # Apenas administrador pode listar
         if decodificar_token()['tipo'] != 0:
-            return jsonify({'message': 'É necessário ser administrador para isso'}), 401
+            return jsonify({'error': 'É necessário ser administrador para isso'}), 401
 
         # Busca todos os usuários
         cur.execute("""SELECT ID_USUARIOS,
@@ -596,7 +596,7 @@ def listar_usuarios():
             }), 404
 
     except Exception as e:
-        return jsonify(mensagem=f'Erro ao consultar o banco de dados: {e}'), 500
+        return jsonify({'message': f'Erro ao consultar o banco de dados: {e}'}), 500
     finally:
         cur.close()
         con.close()
@@ -606,7 +606,7 @@ def listar_usuarios():
 @app.route('/buscar_usuarios', methods=['GET'])
 def buscar_usuarios():
     # Pega valor de busca
-    cpf_cnpj = request.form.get('cpf_cnpj')
+    cpf_cnpj = request.json.get('cpf_cnpj')
 
     # Cria conexão
     con = conexao()
@@ -617,11 +617,11 @@ def buscar_usuarios():
     try:
         # Verifica token
         if decodificar_token() == False:
-            return jsonify({'message': 'Token necessário'}), 401
+            return jsonify({'error': 'Token necessário'}), 401
 
         # Apenas administrador pode buscar
         if decodificar_token()['tipo'] != 0:
-            return jsonify({'message': 'É necessário ser administrador para isso'}), 401
+            return jsonify({'error': 'É necessário ser administrador para isso'}), 401
 
         # Adiciona o % antes e depois pra poder buscar mesmo se não for o valor completo
         valor_busca = f"%{cpf_cnpj}%"
@@ -664,7 +664,7 @@ def buscar_usuarios():
             }), 404
 
     except Exception as e:
-        return jsonify(mensagem=f'Erro ao consultar o banco de dados: {e}'), 500
+        return jsonify({'message': f'Erro ao consultar o banco de dados: {e}'}), 500
     finally:
         cur.close()
         con.close()
@@ -675,8 +675,8 @@ def buscar_usuarios():
 @app.route('/login', methods=['POST'])
 def login():
     # Pega os dados do formulário
-    cpf_cnpj = request.form.get('cpf_cnpj')
-    senha = request.form.get('senha')
+    cpf_cnpj = request.json.get('cpf_cnpj')
+    senha = request.json.get('senha')
 
     # Cria conexão com o banco
     con = conexao()
@@ -687,7 +687,7 @@ def login():
     try:
         # Verifica se já está logado
         if decodificar_token() != False:
-            return jsonify({'message': 'É necessário estar deslogado para logar'}), 401
+            return jsonify({'error': 'É necessário estar deslogado para logar'}), 401
 
         # Busca o usuário pelo CPF/CNPJ
         cur.execute("""SELECT ID_USUARIOS,
@@ -749,7 +749,7 @@ def login():
             token = gerar_token(tipo, id_usuarios, 10)
 
             # Cria resposta com cookie
-            resp = make_response(jsonify({'mensagem': f'Bem-vindo {nome}!'}))
+            resp = make_response(jsonify({'message': f'Bem-vindo {nome}!'}))
 
             # Define cookie com token
             resp.set_cookie('acess_token', token,
@@ -772,7 +772,7 @@ def login():
         return jsonify({"error": "Senha incorreta"}), 400
 
     except Exception as e:
-        return jsonify(mensagem=f'Erro ao consultar o banco de dados: {e}'), 500
+        return jsonify({'message': f'Erro ao consultar o banco de dados: {e}'}), 500
     finally:
         cur.close()
         con.close()
@@ -784,10 +784,10 @@ def logout():
     try:
         # Verifica se já está deslogado
         if decodificar_token() == False:
-            return jsonify({'mensagem': 'Você já está deslogado!'})
+            return jsonify({'message': 'Você já está deslogado!'})
 
         # Cria resposta
-        resp = make_response(jsonify({'mensagem': f'Você deslogou!'}))
+        resp = make_response(jsonify({'message': f'Você deslogou!'}))
 
         # Remove o cookie do token
         resp.set_cookie(
@@ -803,7 +803,7 @@ def logout():
         return resp
 
     except Exception as e:
-        return jsonify(mensagem=f'Erro ao consultar o banco de dados: {e}'), 500
+        return jsonify({'message': f'Erro ao consultar o banco de dados: {e}'}), 500
 
 
 # Desbloquear usuário
@@ -818,7 +818,7 @@ def desbloquear_usuarios(id_usuarios):
     try:
         # Verifica token
         if decodificar_token() == False:
-            return jsonify({'message': 'Token necessário'}), 401
+            return jsonify({'error': 'Token necessário'}), 401
 
         # Apenas administrador pode desbloquear
         if decodificar_token()['tipo'] == 0:
@@ -831,9 +831,9 @@ def desbloquear_usuarios(id_usuarios):
 
             con.commit()
 
-            return jsonify({'mensagem': 'Usuário desbloqueado com sucesso!'})
+            return jsonify({'message': 'Usuário desbloqueado com sucesso!'})
 
-        return jsonify({'mensagem': 'É necessário ser administrador'})
+        return jsonify({'error': 'É necessário ser administrador'})
     finally:
         cur.close()
         con.close()
@@ -843,7 +843,7 @@ def desbloquear_usuarios(id_usuarios):
 @app.route('/confirmar_email', methods=['POST'])
 def confirmar_email():
     # Pega código digitado
-    codigo_digitado = request.form.get('codigo_digitado')
+    codigo_digitado = (request.json.get('codigo_digitado'))
 
     # Cria conexão
     con = conexao()
@@ -853,7 +853,7 @@ def confirmar_email():
 
     # Verifica se código foi enviado
     if not codigo_digitado:
-        return jsonify({'message': 'Preencha o código de confirmação'}), 400
+        return jsonify({'error': 'Preencha o código de confirmação'}), 400
 
     try:
         # Busca usuário pelo código
@@ -862,7 +862,7 @@ def confirmar_email():
 
         # Verifica se código é válido
         if not usuario:
-            return jsonify({'message': 'Código incorreto'}), 404
+            return jsonify({'error': 'Código incorreto'}), 404
 
         id_usuarios = usuario[0]
 
@@ -875,7 +875,7 @@ def confirmar_email():
         return jsonify({'message': 'Email confirmado com sucesso!'}), 200
 
     except Exception as e:
-        return jsonify({'message': f'Erro: {e}'})
+        return jsonify({'error': f'Erro: {e}'})
     finally:
         cursor.close()
         con.close()
@@ -885,11 +885,11 @@ def confirmar_email():
 @app.route('/esqueci_senha', methods=['POST'])
 def esqueci_senha():
     # Pega e-mail
-    email = request.form.get('email')
+    email = request.json.get('email')
 
     # Verifica se foi enviado
     if not email:
-        return jsonify(mensagem="Por favor, envie o e-mail."), 400
+        return jsonify({'message': "Por favor, envie o e-mail."}), 400
 
     # Cria conexão
     con = conexao()
@@ -904,7 +904,7 @@ def esqueci_senha():
 
         # Verifica se usuário existe
         if not usuario:
-            return jsonify(mensagem="Usuário não encontrado"), 404
+            return jsonify({'message': "Usuário não encontrado"}), 404
 
         id_usuarios = usuario[0]
         nome = usuario[1]
@@ -936,8 +936,8 @@ def esqueci_senha():
                              args=(email, assunto, html)
                              ).start()
 
-            return jsonify(
-                mensagem="Percebemos que seu código ainda está ativo, por isso ele foi reenviado para o e-mail!"), 200
+            return jsonify({
+                'message': "Percebemos que seu código ainda está ativo, por isso ele foi reenviado para o e-mail!"}), 200
 
         # Remove códigos antigos
         cursor.execute("DELETE FROM RECUPERACAO_SENHA WHERE id_usuarios = ?", (id_usuarios,))
@@ -967,11 +967,11 @@ def esqueci_senha():
                          args=(email, assunto, html)
                          ).start()
 
-        return jsonify(mensagem="Código enviado para o e-mail!"), 200
+        return jsonify({'message': "Código enviado para o e-mail!"}), 200
 
     except Exception as e:
         con.rollback()
-        return jsonify(mensagem=f"Erro interno: {e}"), 500
+        return jsonify({'message': f"Erro interno: {e}"}), 500
     finally:
         cursor.close()
         con.close()
@@ -981,11 +981,11 @@ def esqueci_senha():
 @app.route('/verificar_codigo', methods=['POST'])
 def verificar_codigo():
     # Pega código digitado
-    codigo_digitado = request.form.get('codigo_digitado')
+    codigo_digitado = request.json.get('codigo_digitado')
 
     # Verifica se foi enviado
     if not codigo_digitado:
-        return jsonify({'message': 'Preencha o código'}), 400
+        return jsonify({'error': 'Preencha o código'}), 400
 
     # Cria conexão
     con = conexao()
@@ -1000,7 +1000,7 @@ def verificar_codigo():
 
         # Verifica se código existe
         if not recuperacao:
-            return jsonify({'message': 'Código incorreto!'}), 404
+            return jsonify({'error': 'Código incorreto!'}), 404
 
         id_usuarios = recuperacao[0]
         data_expiracao = recuperacao[1]
@@ -1009,7 +1009,7 @@ def verificar_codigo():
         if datetime.datetime.now() > data_expiracao:
             cursor.execute("DELETE FROM RECUPERACAO_SENHA WHERE id_usuarios = ?", (id_usuarios,))
             con.commit()
-            return jsonify(mensagem="Este código expirou. Solicite um novo."), 400
+            return jsonify({'message': "Este código expirou. Solicite um novo."}), 400
 
         # Busca tipo do usuário
         cursor.execute("SELECT TIPO FROM USUARIOS WHERE ID_USUARIOS = ?", (id_usuarios,))
@@ -1018,10 +1018,21 @@ def verificar_codigo():
         # Gera token temporário
         token = gerar_token(tipo, id_usuarios, 5)
 
-        return jsonify(mensagem="Código correto! Você tem 5 minutos para alterar sua senha"), 200
+        # Cria resposta com cookie
+        resp = make_response(jsonify({'message': f'Bem-vindo {nome}!'}))
+
+        # Define cookie com token
+        resp.set_cookie('acess_token', token,
+                        httponly=True,
+                        secure=False,
+                        samesite='Lax',
+                        path="/",
+                        max_age=3600)
+
+        return jsonify({'message': "Código correto! Você tem 5 minutos para alterar sua senha"}), 200
 
     except Exception as e:
-        return jsonify({'message': f'Erro: {e}'}), 500
+        return jsonify({'error': f'Erro: {e}'}), 500
     finally:
         cursor.close()
         con.close()
