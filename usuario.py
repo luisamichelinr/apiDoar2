@@ -12,77 +12,109 @@ from random import randint
 # Criar usuário
 @app.route('/criar_usuarios', methods=['POST'])
 def criar_usuarios():
-    # Pega as informações do JSON
-    data = request.get_json()
-    
-    nome = data.get('nome', None)
-    email = data.get('email', None)
-    cpf_cnpj = data.get('cpf_cnpj', None)
-    telefone = data.get('telefone', None)
-    descricao_breve = data.get('descricao_breve', None)
-    descricao_longa = data.get('descricao_longa', None)
-    cod_banco = data.get('cod_banco', None)
-    num_agencia = data.get('num_agencia', None)
-    num_conta = data.get('num_conta', None)
-    tipo_conta = data.get('tipo_conta', None)
-    chave_pix = data.get('chave_pix', None)
-    categoria = data.get('categoria', None)
-    localizacao = data.get('localizacao', None)
-    senha = data.get('senha')
-    confirmar_senha = data.get('confirmar_senha')
-    tipo = data.get('tipo', 1)
-    foto_perfil_base64 = data.get('foto_perfil', None)
+    # Pega as informações do body. Utilizamos o request.form.get visto que ele
+    # permite colocar um valor para caso o usuário não preencha esse campo
+    nome = request.form.get('nome', None)
+    email = request.form.get('email', None)
+    cpf_cnpj = request.form.get('cpf_cnpj', None)
+    telefone = request.form.get('telefone', None)
+    descricao_breve = request.form.get('descricao_breve', None)
+    descricao_longa = request.form.get('descricao_longa', None)
+    cod_banco = request.form.get('cod_banco', None)
+    num_agencia = request.form.get('num_agencia', None)
+    num_conta = request.form.get('num_conta', None)
+    tipo_conta = request.form.get('tipo_conta', None)
+    chave_pix = request.form.get('chave_pix', None)
+    categoria = request.form.get('categoria', None)
+    localizacao = request.form.get('localizacao', None)
+    senha = request.form.get('senha')
+    confirmar_senha = request.form.get('confirmar_senha')
 
+    # Tipo 0 - ADM
+    # Tipo 1 - Doador
+    # Tipo 2 - ONG
+    tipo = request.form.get('tipo', 1)
+
+    foto_perfil = request.files.get('foto_perfil')
+
+    # Armazena a data e horário que o usuário se cadastrou
     data_cadastro = datetime.datetime.now()
+
+    # Define que o usuário, por padrão, está ativo
     ativo = 1
-    
+
+    # Define que o usuário de ONG, ainda não foi aprovado
     if tipo == 2:
         aprovacao = 0
     else:
         aprovacao = None
 
+    # Define que o usuário, por padrão, não confirmou o e-mail
     email_confirmacao = 0
 
+    # Temos uma função para a conexão com o banco -> Precisamos chamá-la
     con = conexao()
+
+    # Abrir o cursor
     cur = con.cursor()
 
     try:
+        # Verifica se o usuário está logado (decodificar é false)
+        # e se ele não é adm (tipo 0)
         if decodificar_token() != False and decodificar_token()['tipo'] != 0:
-            return jsonify({'error': 'Você não pode estar logado para criar um novo usuário'}), 400
+            return jsonify({'error': 'Você não pode estar logado para criar um novo usuário'})
 
-        # Validações
-        if not nome or nome.strip() == '':
+        # Verifica se o nome está vazio
+        if nome == None:
             return jsonify({"error": "Nome é uma informação obrigatória."}), 400
 
-        if not cpf_cnpj or cpf_cnpj.strip() == '':
+        nome_sem_espacos = nome.strip()
+        if nome_sem_espacos == '':
+            return jsonify({"error": "Nome é uma informação obrigatória."}), 400
+
+        # Verifica se o CPF/CNPJ está vazio
+        if cpf_cnpj == None:
             return jsonify({"error": "CPF/CNPJ é uma informação obrigatória."}), 400
 
-        # Validação de email apenas para doador
-        if tipo == 1:
-            if not email or email.strip() == '':
-                return jsonify({"error": "E-mail é uma informação obrigatória."}), 400
-            if verificar_existente(email, 2) == False:
-                return jsonify({"error": "E-mail já cadastrado"}), 400
-        else:
-            if not email or email.strip() == '':
-                email = f"{cpf_cnpj}@ong.doar.com"
+        cpf_cnpj_sem_espacos = cpf_cnpj.strip()
+        if cpf_cnpj_sem_espacos == '':
+            return jsonify({"error": "CPF/CNPJ é uma informação obrigatória."}), 400
 
+        # Verifica se o email está vazio
+        if email == None:
+            return jsonify({"error": "E-mail é uma informação obrigatória."}), 400
+
+        email_sem_espacos = email.strip()
+        if email_sem_espacos == '':
+            return jsonify({"error": "E-mail é uma informação obrigatória."}), 400
+
+        # Verifica se o CPF já está cadastrado
         if verificar_existente(cpf_cnpj, 1) == False:
             return jsonify({"error": "CPF ou CNPJ já cadastrado."}), 400
 
-        if not senha:
-            return jsonify({"error": "Senha é obrigatória"}), 400
+        # Verifica se o e-mail já está cadastrado
+        if verificar_existente(email, 2) == False:
+            return jsonify({"error": "E-mail já cadastrado"}), 40
 
-        if senha != confirmar_senha:
+        # Verifica se a senha é forte
+        if senha_forte(senha) == False:
+            return jsonify({
+                               "error": "Senha fraca. A senha deve conter pelo menos 8 caracteres, incluindo letras maiúsculas, minúsculas, números e caracteres especiais."}), 400
+
+        # Verifica se as senhas digitadas correspondem
+        if senha_correspondente(senha, confirmar_senha) == False:
             return jsonify({"error": "Senhas não correspondem."}), 400
 
-        if len(senha) < 8:
-            return jsonify({"error": "Senha deve ter pelo menos 8 caracteres"}), 400
-
+        # Criptografa a senha
         senha_cripto = generate_password_hash(senha).decode('utf-8')
+
+        # Gera um código de confirmação de e-mail
         codigo_confirmacao = randint(100000, 999999)
+
+        # Define como 0 o número de tentativas de login
         tentativa = 0
 
+        # Insere o usuário no banco de dados
         cur.execute("""INSERT INTO USUARIOS (NOME, EMAIL, SENHA, CPF_CNPJ, TELEFONE,
                                              DESCRICAO_BREVE, DESCRICAO_LONGA,
                                              APROVACAO, COD_BANCO, NUM_AGENCIA, NUM_CONTA,
@@ -94,32 +126,64 @@ def criar_usuarios():
                      chave_pix, categoria, ativo, localizacao, tipo, data_cadastro, email_confirmacao,
                      codigo_confirmacao, tentativa))
 
+        # Recupera o ID do usuário recém criado
         codigo_usuarios = cur.fetchone()[0]
+
         con.commit()
 
-        if foto_perfil_base64:
-            if ',' in foto_perfil_base64:
-                foto_perfil_base64 = foto_perfil_base64.split(',')[1]
-            imagem_data = base64.b64decode(foto_perfil_base64)
+        caminho_imagem_destino = None
+
+        # Verifica se foi enviada uma foto de perfil
+        if foto_perfil:
+            # Define o nome da imagem com base no ID do usuário
             nome_imagem = f'{codigo_usuarios}.jpeg'
+
+            # Define a pasta de destino
             caminho_imagem_destino = os.path.join(app.config['UPLOAD_FOLDER'], "Usuários")
+
+            # Cria a pasta caso não exista
             os.makedirs(caminho_imagem_destino, exist_ok=True)
+
+            # Define o caminho completo da imagem
             caminho_imagem = os.path.join(caminho_imagem_destino, nome_imagem)
-            with open(caminho_imagem, 'wb') as f:
-                f.write(imagem_data)
 
-        # Só envia email para doador
-        if tipo == 1:
-            assunto = 'Código de Confirmação de E-mail'
-            mensagem = 'Bem-vindo(a) à Doar +! Para prosseguir, é necessário confirmar seu e-mail'
-            html = render_template('template_email.html', mensagem=mensagem, codigo=codigo_confirmacao)
-            threading.Thread(target=enviando_email, args=(email, assunto, html)).start()
+            # Salva a imagem no diretório
+            foto_perfil.save(caminho_imagem)
 
-        return jsonify({'message': "Usuário cadastrado com sucesso"}), 201
-        
+        # Define assunto e mensagem do e-mail
+        assunto = 'Código de Confirmação de E-mail'
+        mensagem = 'Bem-vindo(a) à Doar +! Para prosseguir, é necessário confirmar seu e-mail'
+        codigo = codigo_confirmacao
+
+        # Renderiza o template HTML do e-mail
+        html = render_template('template_email.html', mensagem=mensagem, codigo=codigo)
+
+        # Envia o e-mail em uma thread separada
+        threading.Thread(target=enviando_email,
+                         args=(email, assunto, html)
+                         ).start()
+
+        # Retorna sucesso com os dados do usuário
+        return jsonify({'message': "Usuário cadastrado com sucesso",
+                            'usuario': {
+                                'tipo': tipo,
+                                'nome': nome,
+                                'email': email,
+                                'cpf_cnpj': cpf_cnpj,
+                                'telefone': telefone,
+                                'descricao_breve': descricao_breve,
+                                'descricao_longa': descricao_longa,
+                                'cod_banco': cod_banco,
+                                'num_agencia': num_agencia,
+                                'num_conta': num_conta,
+                                'tipo_conta': tipo_conta,
+                                'chave_pix': chave_pix,
+                                'categoria': categoria,
+                                'localizacao': localizacao
+                            }
+                            }), 201
     except Exception as e:
-        con.rollback()
-        return jsonify({'error': f'Erro ao consultar o banco de dados: {e}'}), 500
+        return jsonify({'message': f'Erro ao consultar o banco de dados: {e}'}), 500
     finally:
         cur.close()
         con.close()
@@ -612,25 +676,40 @@ def buscar_usuarios():
 # Login
 @app.route('/login', methods=['POST'])
 def login():
-    data = request.get_json()
-    cpf_cnpj = data.get('cpf_cnpj')
-    senha = data.get('senha')
+    # Pega os dados do formulário
+    cpf_cnpj = request.json.get('cpf_cnpj')
+    senha = request.json.get('senha')
 
+    # Cria conexão com o banco
     con = conexao()
+
+    # Abre cursor
     cur = con.cursor()
 
     try:
+        # Verifica se já está logado
         if decodificar_token() != False:
             return jsonify({'error': 'É necessário estar deslogado para logar'}), 401
 
-        cur.execute("""SELECT ID_USUARIOS, TIPO, NOME, CPF_CNPJ, SENHA, TENTATIVA, EMAIL_CONFIRMACAO, ATIVO
-                       FROM USUARIOS WHERE CPF_CNPJ = ?""", (cpf_cnpj,))
+        # Busca o usuário pelo CPF/CNPJ
+        cur.execute("""SELECT ID_USUARIOS,
+                              TIPO,
+                              NOME,
+                              CPF_CNPJ,
+                              SENHA,
+                              TENTATIVA,
+                              EMAIL_CONFIRMACAO,
+                              ATIVO
+                       FROM USUARIOS
+                       WHERE CPF_CNPJ = ?""", (cpf_cnpj,))
 
         usuario = cur.fetchone()
 
+        # Verifica se o usuário existe
         if not usuario:
             return jsonify({"error": "Usuário não encontrado"}), 404
 
+        # Atribui valores
         id_usuarios = usuario[0]
         tipo = usuario[1]
         nome = usuario[2]
@@ -639,38 +718,66 @@ def login():
         email_confirmacao = usuario[6]
         ativo = usuario[7]
 
+        # Verifica se o usuário está bloqueado por tentativas
         if tentativa > 3 and tipo != 0:
-            return jsonify({"error": "Esse usuário está bloqueado! Entre em contato com o administrador"}), 400
+            return jsonify(
+                {"error": "Esse usuário está bloqueado! Entre em contato com o administrador"}
+            ), 400
 
+        # Verifica se o usuário está ativo
         if ativo == 0:
-            return jsonify({"error": "Esse usuário está inativado"}), 400
+            return jsonify(
+                {"error": "Esse usuário está inativado"}
+            ), 400
 
-        if email_confirmacao == 0 and tipo == 1:
-            return jsonify({"error": "Verifique o e-mail antes de logar!"}), 400
+        # Verifica se o e-mail foi confirmado
+        if email_confirmacao == 0:
+            return jsonify(
+                {"error": "Verifique o e-mail antes de logar!"}
+            ), 400
 
+        # Verifica se a senha está correta
         if check_password_hash(senha_hash, senha):
+            id_usuarios = usuario[0]
+
+            # Se havia tentativas anteriores, zera
             if tentativa > 0:
-                cur.execute("UPDATE USUARIOS SET TENTATIVA = 0 WHERE ID_USUARIOS = ?", (id_usuarios,))
+                cur.execute("""UPDATE USUARIOS
+                               SET TENTATIVA = 0
+                               WHERE ID_USUARIOS = ?""", (id_usuarios,))
                 con.commit()
 
+            # Gera token de autenticação
             token = gerar_token(tipo, id_usuarios, 10)
+
+            # Cria resposta com cookie
             resp = make_response(jsonify({'message': f'Bem-vindo {nome}!', 'nome': nome, 'token': token}))
-            resp.set_cookie('acess_token', token, httponly=True, secure=False, samesite='Lax', path="/", max_age=3600)
+
+            # Define cookie com token
+            resp.set_cookie('acess_token', token,
+                            httponly=True,
+                            secure=False,
+                            samesite='Lax',
+                            path="/",
+                            max_age=3600)
+
             return resp
 
+        # Se senha estiver incorreta, incrementa tentativas (exceto admin)
         if tipo != 0:
             tentativa = tentativa + 1
-            cur.execute("UPDATE USUARIOS SET TENTATIVA = ? WHERE ID_USUARIOS = ?", (tentativa, id_usuarios))
+            cur.execute("""UPDATE USUARIOS
+                           SET TENTATIVA = ?
+                           WHERE ID_USUARIOS = ?""", (tentativa, id_usuarios))
             con.commit()
 
         return jsonify({"error": "Senha incorreta"}), 400
 
     except Exception as e:
-        return jsonify({'error': f'Erro ao consultar o banco de dados: {e}'}), 500
+        return jsonify({'message': f'Erro ao consultar o banco de dados: {e}'}), 500
     finally:
         cur.close()
         con.close()
-
 
 
 # Logout
@@ -737,30 +844,40 @@ def desbloquear_usuarios(id_usuarios):
 # Confirmar e-mail
 @app.route('/confirmar_email', methods=['POST'])
 def confirmar_email():
-    data = request.get_json()
-    codigo_digitado = data.get('codigo_digitado')
+    # Pega código digitado
+    codigo_digitado = (request.json.get('codigo_digitado'))
 
+    # Cria conexão
     con = conexao()
+
+    # Abre cursor
     cursor = con.cursor()
 
+    # Verifica se código foi enviado
     if not codigo_digitado:
         return jsonify({'error': 'Preencha o código de confirmação'}), 400
 
     try:
-        cursor.execute('SELECT id_usuarios FROM usuarios WHERE codigo_confirmacao = ?', (str(codigo_digitado),))
+        # Busca usuário pelo código
+        cursor.execute('SELECT id_usuarios FROM usuarios WHERE codigo_confirmacao = ?', (str(codigo_digitado, ),))
         usuario = cursor.fetchone()
 
+        # Verifica se código é válido
         if not usuario:
             return jsonify({'error': 'Código incorreto'}), 404
 
         id_usuarios = usuario[0]
-        cursor.execute('UPDATE usuarios SET email_confirmacao = 1, codigo_confirmacao = NULL WHERE id_usuarios = ?', (id_usuarios,))
+
+        # Atualiza confirmação de e-mail
+        cursor.execute('UPDATE usuarios SET email_confirmacao = 1, codigo_confirmacao = NULL WHERE id_usuarios = ?',
+                       (id_usuarios, ))
+
         con.commit()
 
         return jsonify({'message': 'Email confirmado com sucesso!'}), 200
 
     except Exception as e:
-        return jsonify({'error': f'Erro: {e}'}), 500
+        return jsonify({'error': f'Erro: {e}'})
     finally:
         cursor.close()
         con.close()
