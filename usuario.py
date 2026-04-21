@@ -440,11 +440,9 @@ def deletar_usuarios(id_usuarios):
 
         # Se existir histórico, remove um por um
         if cur.fetchall():
-            id_senhas_antigas = cur.fetchall()
-            for id in id_senhas_antigas:
-                cur.execute("""DELETE FROM HISTORICO_SENHA 
-                            where ID_HISTORICO_SENHA = ?""", (id,))
-                con.commit()
+            cur.execute("""DELETE FROM HISTORICO_SENHA 
+                            where ID_USUARIOS = ?""", (id_usuarios,))
+            con.commit()
 
         # Remove registros de recuperação de senha
         cur.execute("""DELETE FROM RECUPERACAO_SENHA

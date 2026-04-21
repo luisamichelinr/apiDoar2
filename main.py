@@ -17,6 +17,7 @@ user = app.config['DB_USER']
 password = app.config['DB_PASSWORD']
 
 from usuario import *
+from projeto import *
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
