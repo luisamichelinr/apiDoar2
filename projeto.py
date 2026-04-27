@@ -1,12 +1,8 @@
-from flask import jsonify, request, make_response, render_template
-from funcao import senha_forte, enviando_email, gerar_token, verificar_existente, senha_correspondente, senha_antiga, decodificar_token
-from flask_bcrypt import generate_password_hash, check_password_hash
+from flask import jsonify, request
 from main import app
 from db import conexao
-import threading
 import os
-import datetime
-from random import randint
+from datetime import datetime
 
 
 # Criar projeto
@@ -92,7 +88,7 @@ def criar_projetos():
         con.close()
 
 
-@app.route('/editar_projetos/<int:id_projetos>', methods=['PUT'])
+@app.route('/editar_projetos/<int:id_projetos>', methods=['GET', 'PUT'])
 def editar_projetos(id_projetos):
     # Cria a conexão com o banco
     con = conexao()
@@ -101,82 +97,96 @@ def editar_projetos(id_projetos):
     cur = con.cursor()
 
     try:
-        cur.execute("""SELECT ID_USUARIOS, TITULO, DESCRICAO, 
-                        CATEGORIA, STATUS, TIPO_AJUDA, LOCALIZACAO
-                        FROM PROJETOS WHERE ID_PROJETOS = ?""", (id_projetos,))
-        projeto = cur.fetchone()
+        if request.method == 'GET':
+            cur.execute("""SELECT ID_USUARIOS, TITULO, DESCRICAO, 
+                            CATEGORIA, STATUS, TIPO_AJUDA, LOCALIZACAO
+                            FROM PROJETOS WHERE ID_PROJETOS = ?""", (id_projetos,))
+            projeto = cur.fetchone()
 
-        # Verifica se o projeto existe
-        if projeto == None:
-            return jsonify({"error": "Projeto não encontrado"}), 404
+            # Verifica se o projeto existe
+            if projeto == None:
+                return jsonify({"error": "Projeto não encontrado"}), 404
 
-        id_usuarios = projeto[0]
+            id_usuarios = projeto[0]
 
-        # # Verifica se o usuário é o dono da conta ou administrador
-        # if decodificar_token()['id_usuarios'] != id_usuarios and decodificar_token()['tipo'] != 0:
-        #     return jsonify({'error': 'É necessário ser a ONG do projeto ou o administrador para editar'}), 401
+            # # Verifica se o usuário é o dono da conta ou administrador
+            # if decodificar_token()['id_usuarios'] != id_usuarios and decodificar_token()['tipo'] != 0:
+            #     return jsonify({'error': 'É necessário ser a ONG do projeto ou o administrador para editar'}), 401
 
-        # Pega os dados enviados ou mantém os atuais
-        titulo = request.form.get('titulo', projeto[1])
-        descricao = request.form.get('descricao', projeto[2])
-        categoria = request.form.get('categoria', projeto[3])
-        status = request.form.get('status', projeto[4])
-        tipo_ajuda = request.form.get('tipo_ajuda', projeto[5])
-        localizacao = request.form.get('localizacao', projeto[6])
-        foto_projeto = request.files.get('foto_projeto')
-
-        # Verifica se o título está vazio
-        titulo_sem_espaços = titulo.strip()
-        if titulo_sem_espaços == '':
-            return jsonify({"error": "Título é uma informação obrigatória."}), 400
-
-
-        # Atualiza os dados do usuário no banco
-        cur.execute("""UPDATE PROJETOS
-                       SET TITULO = ?,
-                           DESCRICAO = ?,
-                           CATEGORIA = ?,
-                           STATUS = ?,
-                           TIPO_AJUDA = ?,
-                           LOCALIZACAO = ?
-                       WHERE ID_PROJETOS = ?""", (titulo, descricao, categoria, status,
-                                                  tipo_ajuda, localizacao, id_projetos))
-
-        # Confirma a alteração no banco
-        con.commit()
-
-        # Inicializa o caminho da imagem
-        caminho_imagem_destino = None
-
-        # Verifica se foi enviada uma nova foto
-        if foto_projeto:
-            # Define nome da imagem
-            nome_imagem = f'{id_projetos}.jpeg'
-
-            # Define diretório
-            caminho_imagem_destino = os.path.join(app.config['UPLOAD_FOLDER'], "Projetos")
-
-            # Cria diretório se não existir
-            os.makedirs(caminho_imagem_destino, exist_ok=True)
-
-            # Define caminho completo
-            caminho_imagem = os.path.join(caminho_imagem_destino, nome_imagem)
-
-            # Salva imagem
-            foto_projeto.save(caminho_imagem)
-
-        # Retorna sucesso
-        return jsonify({'message': "Projeto editado com sucesso",
-                        'projeto': {
-                                'id_usuarios': id_usuarios,
-                                'titulo': titulo,
-                                'descricao': descricao,
-                                'categoria': categoria,
-                                'status': status,
-                                'tipo_ajuda': tipo_ajuda,
-                                'localizacao': localizacao
+            # Retorna sucesso
+            return jsonify({'message': "Projeto localizado com sucesso",
+                            'projeto': {
+                                'id_usuarios': projeto[0],
+                                'titulo': projeto[1],
+                                'descricao': projeto[2],
+                                'categoria': projeto[3],
+                                'status': projeto[4],
+                                'tipo_ajuda': projeto[5],
+                                'localizacao': projeto[6]
                             }
-                        }), 201
+                            }), 201
+
+        elif request.method == 'PUT':
+            # Pega os dados enviados ou mantém os atuais
+            titulo = request.form.get('titulo')
+            descricao = request.form.get('descricao')
+            categoria = request.form.get('categoria')
+            status = request.form.get('status')
+            tipo_ajuda = request.form.get('tipo_ajuda')
+            localizacao = request.form.get('localizacao')
+            foto_projeto = request.files.get('foto_projeto')
+
+            # Verifica se o título está vazio
+            titulo_sem_espaços = titulo.strip()
+            if titulo_sem_espaços == '':
+                return jsonify({"error": "Título é uma informação obrigatória."}), 400
+
+
+            # Atualiza os dados do usuário no banco
+            cur.execute("""UPDATE PROJETOS
+                           SET TITULO = ?,
+                               DESCRICAO = ?,
+                               CATEGORIA = ?,
+                               STATUS = ?,
+                               TIPO_AJUDA = ?,
+                               LOCALIZACAO = ?
+                           WHERE ID_PROJETOS = ?""", (titulo, descricao, categoria, status,
+                                                      tipo_ajuda, localizacao, id_projetos))
+
+            # Confirma a alteração no banco
+            con.commit()
+
+            # Inicializa o caminho da imagem
+            caminho_imagem_destino = None
+
+            # Verifica se foi enviada uma nova foto
+            if foto_projeto:
+                # Define nome da imagem
+                nome_imagem = f'{id_projetos}.jpeg'
+
+                # Define diretório
+                caminho_imagem_destino = os.path.join(app.config['UPLOAD_FOLDER'], "Projetos")
+
+                # Cria diretório se não existir
+                os.makedirs(caminho_imagem_destino, exist_ok=True)
+
+                # Define caminho completo
+                caminho_imagem = os.path.join(caminho_imagem_destino, nome_imagem)
+
+                # Salva imagem
+                foto_projeto.save(caminho_imagem)
+
+            # Retorna sucesso
+            return jsonify({'message': "Projeto editado com sucesso",
+                            'projeto': {
+                                    'titulo': titulo,
+                                    'descricao': descricao,
+                                    'categoria': categoria,
+                                    'status': status,
+                                    'tipo_ajuda': tipo_ajuda,
+                                    'localizacao': localizacao
+                                }
+                            }), 201
     except Exception as e:
         return jsonify({'message': f'Erro ao consultar o banco de dados: {e}'}), 500
     finally:
@@ -218,7 +228,7 @@ def deletar_projetos(id_projetos):
         # Busca atualizações do projeto
         cur.execute("""SELECT ID_ATUALIZACOES
                        FROM ATUALIZACOES
-                       WHERE ID_PROJETOS = ?""", (id_projetos,))
+                       WHERE ID_PROJETOS = ? """, (id_projetos,))
 
         # Se existir atualizações, remove tudo
         if cur.fetchall:
@@ -250,18 +260,12 @@ def projetos_ong(id_usuarios):
     cur = con.cursor()
 
     try:
-        if decodificar_token()['tipo'] == 0:
-            cur.execute("""SELECT ID_PROJETOS,
-                                  TITULO
-                           FROM PROJETOS""")
-            projetos = cur.fetchall()
-
-        else:
-            cur.execute("""SELECT ID_PROJETOS,
-                                  TITULO
+        cur.execute("""SELECT ID_PROJETOS,
+                                  TITULO, 
+                              DESCRICAO
                            FROM PROJETOS
                            WHERE ID_USUARIOS = ?""", (id_usuarios,))
-            projetos = cur.fetchall()
+        projetos = cur.fetchall()
 
         # Verifica se o projeto existe
         if projetos == None:
@@ -271,13 +275,67 @@ def projetos_ong(id_usuarios):
         for p in projetos:
             dic_projetos.append({
                 'id_projetos': p[0],
-                'titulo': p[1]
+                'titulo': p[1],
+                'descricao': p[2]
             })
 
         return jsonify({'message': "Projeto(s) encontrado(s) com sucesso",
                         'projetos': dic_projetos
                         }), 201
 
+
+    except Exception as e:
+        return jsonify({'message': f'Erro ao consultar o banco de dados: {e}'}), 500
+    finally:
+        cur.close()
+        con.close()
+
+@app.route('/listar_projetos/<pesquisa>', methods=['GET'])
+def listar_projetos(pesquisa):
+    # Cria a conexão com o banco
+    con = conexao()
+
+    # Abre o cursor
+    cur = con.cursor()
+
+    try:
+        if pesquisa != None:
+            # pesquisa = pesquisa.lower() - Ver essa questão de poder digitar tudo minúsculo e sem acento
+            pesquisa = f"%{pesquisa}%"
+            cur.execute("""SELECT ID_PROJETOS, 
+                                      ID_USUARIOS,
+                                      TITULO,  
+                                      DESCRICAO, 
+                                      CATEGORIA,
+                                      STATUS, 
+                                      TIPO_AJUDA,
+                                      LOCALIZACAO
+                               FROM PROJETOS WHERE TITULO = ?""", (pesquisa,))
+            projetos = cur.fetchall()
+
+            # Verifica se o projeto existe
+            if projetos == None:
+                return jsonify({"error": "Não há nenhum projeto"}), 404
+
+        dic_projetos = []
+        for p in projetos:
+            id_usuarios = p[1]
+            cur.execute("""SELECT NOME FROM USUARIOS WHERE ID_USUARIOS = ?""" (id_usuarios, ))
+            ong = cur.fetchone()
+            dic_projetos.append({
+                'id_projetos': p[0],
+                'ong': ong,
+                'titulo': p[2],
+                'descricao': p[3],
+                'categoria': p[4],
+                'status': p[5],
+                'tipo_ajuda': p[6],
+                'localizacao': p[7]
+            })
+
+        return jsonify({'message': "Projeto(s) encontrado(s) com sucesso",
+                        'projetos': dic_projetos
+                        }), 201
 
     except Exception as e:
         return jsonify({'message': f'Erro ao consultar o banco de dados: {e}'}), 500
@@ -309,16 +367,18 @@ def ver_projetos(id_projetos):
         if projeto == None:
             return jsonify({"error": "Projeto não encontrado"}), 404
 
-        cur.execute("""SELECT ID_ATUALIZACOES, TITULO, TEXTO 
-                       FROM ATUALIZACOES WHERE ID_PROJETOS = ?""", (id_projetos, ))
+        cur.execute("""SELECT ID_ATUALIZACOES, TITULO, TEXTO, DATA 
+                       FROM ATUALIZACOES WHERE ID_PROJETOS = ? ORDER BY DATA DESC""", (id_projetos, ))
         atualizacoes = cur.fetchall()
 
         dic_atualizacoes = []
         for a in atualizacoes:
+            data = a[3].strftime("%d/%m/%Y às %H:%M")
             dic_atualizacoes.append({
                 'id_atualizacoes': a[0],
                 'titulo': a[1],
-                'texto': a[2]
+                'texto': a[2],
+                'data': data
             })
 
         return jsonify({'message': "Projeto encontrado com sucesso",
@@ -331,6 +391,7 @@ def ver_projetos(id_projetos):
                             'tipo_ajuda': projeto[5],
                             'localizacao': projeto[6],
                         },
+                        'num_atualizacoes': len(atualizacoes),
                         'atualizacoes': dic_atualizacoes
                         }), 201
 
@@ -386,10 +447,12 @@ def criar_atualizacoes():
         if titulo_sem_espaços == '':
             return jsonify({"error": "Título é uma informação obrigatória."}), 400
 
+        data = datetime.datetime.now()
+
         # Insere o usuário no banco de dados
-        cur.execute("""INSERT INTO ATUALIZACOES (ID_PROJETOS, TITULO, TEXTO)
-                       VALUES (?, ?, ?) RETURNING ID_ATUALIZACOES""",
-                    (id_projetos, titulo, texto))
+        cur.execute("""INSERT INTO ATUALIZACOES (ID_PROJETOS, TITULO, TEXTO, DATA)
+                       VALUES (?, ?, ?, ?) RETURNING ID_ATUALIZACOES""",
+                    (id_projetos, titulo, texto, data))
 
         # Recupera o ID do usuário recém criado
         id_atualizacoes = cur.fetchone()[0]
@@ -415,12 +478,15 @@ def criar_atualizacoes():
             # Salva a imagem no diretório
             foto_atualizacao.save(caminho_imagem)
 
+        data = data.strftime("%d/%m/%Y às %H:%M")
+
         # Retorna sucesso com os dados do projeto
         return jsonify({'message': "Atualização cadastrada com sucesso",
                             'atualizacao': {
                                 'id_projeto': id_projetos,
                                 'titulo': titulo,
-                                'texto': texto
+                                'texto': texto,
+                                'data': data
                             }
                             }), 201
     except Exception as e:
@@ -429,7 +495,7 @@ def criar_atualizacoes():
         cur.close()
         con.close()
 
-@app.route('/editar_atualizacoes/<int:id_atualizacoes>', methods=['PUT'])
+@app.route('/editar_atualizacoes/<int:id_atualizacoes>', methods=['GET', 'PUT'])
 def editar_atualizacoes(id_atualizacoes):
     # Cria a conexão com o banco
     con = conexao()
@@ -438,80 +504,97 @@ def editar_atualizacoes(id_atualizacoes):
     cur = con.cursor()
 
     try:
-        cur.execute("""SELECT ID_PROJETOS, TITULO, TEXTO
-                        FROM ATUALIZACOES WHERE ID_ATUALIZACOES = ?""", (id_atualizacoes,))
-        atualizacao = cur.fetchone()
+        if request.method == 'GET':
+            cur.execute("""SELECT ID_PROJETOS, TITULO, TEXTO, DATA
+                            FROM ATUALIZACOES WHERE ID_ATUALIZACOES = ?""", (id_atualizacoes,))
+            atualizacao = cur.fetchone()
 
-        # Verifica se a atualização existe
-        if atualizacao == None:
-            return jsonify({"error": "Atualização não encontrado"}), 404
+            # Verifica se a atualização existe
+            if atualizacao == None:
+                return jsonify({"error": "Atualização não encontrado"}), 404
 
-        id_projetos = atualizacao[0]
+            id_projetos = atualizacao[0]
 
-        cur.execute("""SELECT ID_USUARIOS FROM PROJETOS
-                       WHERE ID_PROJETOS = ?""", (id_projetos,))
-        projeto = cur.fetchone()
+            cur.execute("""SELECT ID_USUARIOS FROM PROJETOS
+                           WHERE ID_PROJETOS = ?""", (id_projetos,))
+            projeto = cur.fetchone()
 
-        if projeto == None:
-            return jsonify({"error": "Projeto não encontrado"}), 404
+            if projeto == None:
+                return jsonify({"error": "Projeto não encontrado"}), 404
 
-        id_usuarios = projeto[0]
+            id_usuarios = projeto[0]
 
-        # # Verifica se o usuário é o dono da conta ou administrador
-        # if decodificar_token()['id_usuarios'] != id_usuarios and decodificar_token()['tipo'] != 0:
-        #     return jsonify({'error': 'É necessário ser a ONG do projeto ou o administrador para editar'}), 401
+            # # Verifica se o usuário é o dono da conta ou administrador
+            # if decodificar_token()['id_usuarios'] != id_usuarios and decodificar_token()['tipo'] != 0:
+            #     return jsonify({'error': 'É necessário ser a ONG do projeto ou o administrador para editar'}), 401
 
-        # Pega os dados enviados ou mantém os atuais
-        id_projetos = request.form.get('projeto', atualizacao[0])
-        titulo = request.form.get('titulo', atualizacao[1])
-        texto = request.form.get('texto', atualizacao[2])
-        foto_atualizacao = request.files.get('foto_atualizacao')
-
-        # Verifica se o título está vazio
-        titulo_sem_espaços = titulo.strip()
-        if titulo_sem_espaços == '':
-            return jsonify({"error": "Título é uma informação obrigatória."}), 400
-
-
-        # Atualiza os dados do usuário no banco
-        cur.execute("""UPDATE ATUALIZACOES
-                       SET ID_PROJETOS = ?,
-                           TITULO = ?,
-                           TEXTO = ?
-                       WHERE ID_ATUALIZACOES = ?""",
-                    (id_projetos, titulo, texto, id_atualizacoes))
-
-        # Confirma a alteração no banco
-        con.commit()
-
-        # Inicializa o caminho da imagem
-        caminho_imagem_destino = None
-
-        # Verifica se foi enviada uma nova foto
-        if foto_atualizacao:
-            # Define nome da imagem
-            nome_imagem = f'{id_atualizacoes}.jpeg'
-
-            # Define diretório
-            caminho_imagem_destino = os.path.join(app.config['UPLOAD_FOLDER'], "Atualizações")
-
-            # Cria diretório se não existir
-            os.makedirs(caminho_imagem_destino, exist_ok=True)
-
-            # Define caminho completo
-            caminho_imagem = os.path.join(caminho_imagem_destino, nome_imagem)
-
-            # Salva imagem
-            foto_atualizacao.save(caminho_imagem)
-
-        # Retorna sucesso
-        return jsonify({'message': "Projeto editado com sucesso",
-                        'projeto': {
-                                'id_projeto': id_projetos,
-                                'titulo': titulo,
-                                'localizacao': texto
+            return jsonify({'message': "Projeto encontrado com sucesso",
+                            'projeto': {
+                                'id_projeto': atualizacao[0],
+                                'titulo': atualizacao[1],
+                                'texto': atualizacao[2]
                             }
-                        }), 201
+                            }), 201
+
+        elif request.method == 'PUT':
+
+            # Pega os dados enviados ou mantém os atuais
+            id_projetos = request.form.get('projeto')
+            titulo = request.form.get('titulo')
+            texto = request.form.get('texto')
+            foto_atualizacao = request.files.get('foto_atualizacao')
+
+            # Verifica se o título está vazio
+            titulo_sem_espaços = titulo.strip()
+            if titulo_sem_espaços == '':
+                return jsonify({"error": "Título é uma informação obrigatória."}), 400
+
+            data = datetime.datetime.now()
+
+            # Atualiza os dados do usuário no banco
+            cur.execute("""UPDATE ATUALIZACOES
+                           SET ID_PROJETOS = ?,
+                               TITULO = ?,
+                               TEXTO = ?,
+                               DATA = ?
+                           WHERE ID_ATUALIZACOES = ?""",
+                        (id_projetos, titulo, texto, data, id_atualizacoes))
+
+            # Confirma a alteração no banco
+            con.commit()
+
+            # Inicializa o caminho da imagem
+            caminho_imagem_destino = None
+
+            # Verifica se foi enviada uma nova foto
+            if foto_atualizacao:
+                # Define nome da imagem
+                nome_imagem = f'{id_atualizacoes}.jpeg'
+
+                # Define diretório
+                caminho_imagem_destino = os.path.join(app.config['UPLOAD_FOLDER'], "Atualizações")
+
+                # Cria diretório se não existir
+                os.makedirs(caminho_imagem_destino, exist_ok=True)
+
+                # Define caminho completo
+                caminho_imagem = os.path.join(caminho_imagem_destino, nome_imagem)
+
+                # Salva imagem
+                foto_atualizacao.save(caminho_imagem)
+
+            data = data.strftime("%d/%m/%Y às %H:%M")
+
+
+            # Retorna sucesso
+            return jsonify({'message': "Projeto editado com sucesso",
+                            'projeto': {
+                                    'id_projeto': id_projetos,
+                                    'titulo': titulo,
+                                    'texto': texto,
+                                    'data': data
+                                }
+                            }), 201
     except Exception as e:
         return jsonify({'message': f'Erro ao consultar o banco de dados: {e}'}), 500
     finally:
@@ -566,8 +649,8 @@ def deletar_atualizacoes(id_atualizacoes):
         cur.close()
         con.close()
 
-@app.route('/listar_atualizacoes', methods=['GET'])
-def listar_atualizacoes():
+@app.route('/listar_atualizacoes/<pesquisa>', methods=['GET'])
+def listar_atualizacoes(pesquisa):
     # Cria a conexão com o banco
     con = conexao()
 
@@ -575,17 +658,29 @@ def listar_atualizacoes():
     cur = con.cursor()
 
     try:
-        cur.execute("""SELECT ID_ATUALIZACOES, ID_PROJETOS, TITULO, TEXTO
-                       FROM ATUALIZACOES""")
-        atualizacoes = cur.fetchall()
+        if pesquisa:
+            pesquisa = f'%{pesquisa}%'
+            cur.execute("""SELECT ID_ATUALIZACOES, ID_PROJETOS, TITULO, TEXTO, DATA
+                           FROM ATUALIZACOES WHERE TITULO = ? ORDER BY DATA DESC""", (pesquisa,))
+            atualizacoes = cur.fetchall()
+
+        else:
+            cur.execute("""SELECT ID_ATUALIZACOES, ID_PROJETOS, TITULO, TEXTO, DATA
+                           FROM ATUALIZACOES ORDER BY DATA DESC""")
+            atualizacoes = cur.fetchall()
+
+        if atualizacoes == []:
+            return jsonify({"error": "Atualização não encontrado"}), 404
 
         dic_atualizacoes = []
         for a in atualizacoes:
+            data = a[4].strftime("%d/%m/%Y às %H:%M")
             dic_atualizacoes.append({
                 'id_atualizacoes': a[0],
                 'id_projeto': a[1],
                 'titulo': a[2],
-                'texto': a[3]
+                'texto': a[3],
+                'data': data
             })
 
         return jsonify({'atualizacoes': dic_atualizacoes}), 201
