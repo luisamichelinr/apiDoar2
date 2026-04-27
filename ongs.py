@@ -17,15 +17,12 @@ def listar_ongs():
     cur = con.cursor()
 
     try:
-        # Verifica autenticação
         if decodificar_token() == False:
             return jsonify({'error': 'Token necessário'}), 401
 
-        # Verifica se é administrador (tipo = 0)
         if decodificar_token()['tipo'] != 0:
             return jsonify({'error': 'É necessário ser administrador para acessar esta rota'}), 403
 
-        # Busca todas as ONGs (tipo = 18 conforme sua tabela)
         cur.execute("""
             SELECT ID_USUARIOS,
                    NOME,
@@ -44,9 +41,10 @@ def listar_ongs():
                    ATIVO,
                    LOCALIZACAO,
                    DATA_CADASTRO,
-                   EMAIL_CONFIRMACAO
+                   EMAIL_CONFIRMACAO,
+                   MOTIVO_REPROVACAO
             FROM USUARIOS
-            WHERE TIPO = 18
+            WHERE TIPO = 2
             ORDER BY DATA_CADASTRO DESC
         """)
 
@@ -58,10 +56,8 @@ def listar_ongs():
                 'ongs': []
             }), 200
 
-        # Formata os resultados
         lista_ongs = []
         for ong in ongs:
-            # Converte aprovação para status legível
             if ong[7] == 0:
                 status = 'Pendente'
             elif ong[7] == 1:
@@ -90,7 +86,8 @@ def listar_ongs():
                 'ativo': bool(ong[14]),
                 'localizacao': ong[15],
                 'data_cadastro': ong[16].strftime('%d/%m/%Y %H:%M:%S') if ong[16] else None,
-                'email_confirmado': bool(ong[17])
+                'email_confirmado': bool(ong[17]),
+                'motivo_reprovacao': ong[18] if len(ong) > 18 and ong[18] else None
             })
 
         return jsonify({
@@ -100,6 +97,7 @@ def listar_ongs():
         }), 200
 
     except Exception as e:
+        print(f"ERRO listar_ongs: {e}")
         return jsonify({'error': f'Erro ao consultar o banco de dados: {str(e)}'}), 500
     finally:
         cur.close()
@@ -121,15 +119,12 @@ def buscar_ong():
     cur = con.cursor()
 
     try:
-        # Verifica autenticação
         if decodificar_token() == False:
             return jsonify({'error': 'Token necessário'}), 401
 
-        # Verifica se é administrador
         if decodificar_token()['tipo'] != 0:
             return jsonify({'error': 'É necessário ser administrador para acessar esta rota'}), 403
 
-        # Busca a ONG pelo ID
         cur.execute("""
             SELECT ID_USUARIOS,
                    NOME,
@@ -148,9 +143,10 @@ def buscar_ong():
                    ATIVO,
                    LOCALIZACAO,
                    DATA_CADASTRO,
-                   EMAIL_CONFIRMACAO
+                   EMAIL_CONFIRMACAO,
+                   MOTIVO_REPROVACAO
             FROM USUARIOS
-            WHERE TIPO = 18 AND ID_USUARIOS = ?
+            WHERE TIPO = 2 AND ID_USUARIOS = ?
         """, (ong_id,))
 
         ong = cur.fetchone()
@@ -158,7 +154,6 @@ def buscar_ong():
         if not ong:
             return jsonify({'error': 'ONG não encontrada'}), 404
 
-        # Converte aprovação para status legível
         if ong[7] == 0:
             status = 'Pendente'
         elif ong[7] == 1:
@@ -189,11 +184,13 @@ def buscar_ong():
                 'ativo': bool(ong[14]),
                 'localizacao': ong[15],
                 'data_cadastro': ong[16].strftime('%d/%m/%Y %H:%M:%S') if ong[16] else None,
-                'email_confirmado': bool(ong[17])
+                'email_confirmado': bool(ong[17]),
+                'motivo_reprovacao': ong[18] if len(ong) > 18 and ong[18] else None
             }
         }), 200
 
     except Exception as e:
+        print(f"ERRO buscar_ong: {e}")
         return jsonify({'error': f'Erro ao consultar o banco de dados: {str(e)}'}), 500
     finally:
         cur.close()
@@ -210,19 +207,16 @@ def aprovar_ong(id_usuarios):
     cur = con.cursor()
 
     try:
-        # Verifica autenticação
         if decodificar_token() == False:
             return jsonify({'error': 'Token necessário'}), 401
 
-        # Verifica se é administrador
         if decodificar_token()['tipo'] != 0:
             return jsonify({'error': 'É necessário ser administrador para aprovar ONGs'}), 403
 
-        # Busca a ONG
         cur.execute("""
             SELECT ID_USUARIOS, NOME, EMAIL, APROVACAO
             FROM USUARIOS
-            WHERE ID_USUARIOS = ? AND TIPO = 18
+            WHERE ID_USUARIOS = ? AND TIPO = 2
         """, (id_usuarios,))
 
         ong = cur.fetchone()
@@ -230,14 +224,13 @@ def aprovar_ong(id_usuarios):
         if not ong:
             return jsonify({'error': 'ONG não encontrada'}), 404
 
-        # Verifica se já está aprovada
         if ong[3] == 1:
             return jsonify({'message': 'Esta ONG já está aprovada'}), 200
 
-        # Atualiza status para aprovada
         cur.execute("""
             UPDATE USUARIOS
-            SET APROVACAO = 1
+            SET APROVACAO = 1,
+                MOTIVO_REPROVACAO = NULL
             WHERE ID_USUARIOS = ?
         """, (id_usuarios,))
 
@@ -249,10 +242,16 @@ def aprovar_ong(id_usuarios):
 
         html = render_template('template_aprovacao.html', nome=ong[1], mensagem=mensagem)
 
-        threading.Thread(
-            target=enviando_email,
-            args=(ong[2], assunto, html)
-        ).start()
+        print(f"DEBUG - Enviando email de APROVAÇÃO para: {ong[2]}")
+
+        def enviar_email_aprovacao():
+            try:
+                enviando_email(ong[2], assunto, html)
+                print(f"DEBUG - Email de aprovação enviado com sucesso para {ong[2]}")
+            except Exception as e:
+                print(f"ERRO ao enviar email de aprovação: {e}")
+
+        threading.Thread(target=enviar_email_aprovacao).start()
 
         return jsonify({
             'message': f'ONG {ong[1]} aprovada com sucesso!',
@@ -261,6 +260,7 @@ def aprovar_ong(id_usuarios):
 
     except Exception as e:
         con.rollback()
+        print(f"ERRO aprovar_ong: {e}")
         return jsonify({'error': f'Erro ao aprovar ONG: {str(e)}'}), 500
     finally:
         cur.close()
@@ -277,22 +277,19 @@ def reprovar_ong(id_usuarios):
     cur = con.cursor()
 
     try:
-        # Verifica autenticação
         if decodificar_token() == False:
             return jsonify({'error': 'Token necessário'}), 401
 
-        # Verifica se é administrador
         if decodificar_token()['tipo'] != 0:
             return jsonify({'error': 'É necessário ser administrador para reprovar ONGs'}), 403
 
-        # Pega o motivo da reprovação
         motivo = request.json.get('motivo', 'Não especificado')
+        print(f"DEBUG - Motivo da reprovação: {motivo}")
 
-        # Busca a ONG
         cur.execute("""
             SELECT ID_USUARIOS, NOME, EMAIL, APROVACAO
             FROM USUARIOS
-            WHERE ID_USUARIOS = ? AND TIPO = 18
+            WHERE ID_USUARIOS = ? AND TIPO = 2
         """, (id_usuarios,))
 
         ong = cur.fetchone()
@@ -300,16 +297,15 @@ def reprovar_ong(id_usuarios):
         if not ong:
             return jsonify({'error': 'ONG não encontrada'}), 404
 
-        # Verifica se já está reprovada
         if ong[3] == 2:
             return jsonify({'message': 'Esta ONG já está reprovada'}), 200
 
-        # Atualiza status para reprovada
         cur.execute("""
             UPDATE USUARIOS
-            SET APROVACAO = 2
+            SET APROVACAO = 2,
+                MOTIVO_REPROVACAO = ?
             WHERE ID_USUARIOS = ?
-        """, (id_usuarios,))
+        """, (motivo, id_usuarios))
 
         con.commit()
 
@@ -324,10 +320,16 @@ def reprovar_ong(id_usuarios):
             motivo=motivo
         )
 
-        threading.Thread(
-            target=enviando_email,
-            args=(ong[2], assunto, html)
-        ).start()
+        print(f"DEBUG - Enviando email de REPROVAÇÃO para: {ong[2]}")
+
+        def enviar_email_reprovacao():
+            try:
+                enviando_email(ong[2], assunto, html)
+                print(f"DEBUG - Email de reprovação enviado com sucesso para {ong[2]}")
+            except Exception as e:
+                print(f"ERRO ao enviar email de reprovação: {e}")
+
+        threading.Thread(target=enviar_email_reprovacao).start()
 
         return jsonify({
             'message': f'ONG {ong[1]} reprovada',
@@ -337,6 +339,7 @@ def reprovar_ong(id_usuarios):
 
     except Exception as e:
         con.rollback()
+        print(f"ERRO reprovar_ong: {e}")
         return jsonify({'error': f'Erro ao reprovar ONG: {str(e)}'}), 500
     finally:
         cur.close()
@@ -353,22 +356,18 @@ def bloquear_ong(id_usuarios):
     cur = con.cursor()
 
     try:
-        # Verifica autenticação
         if decodificar_token() == False:
             return jsonify({'error': 'Token necessário'}), 401
 
-        # Verifica se é administrador
         if decodificar_token()['tipo'] != 0:
             return jsonify({'error': 'É necessário ser administrador para bloquear ONGs'}), 403
 
-        # Pega a ação (bloquear ou desbloquear)
         acao = request.json.get('acao', 'bloquear')
 
-        # Busca a ONG
         cur.execute("""
             SELECT ID_USUARIOS, NOME, EMAIL, ATIVO
             FROM USUARIOS
-            WHERE ID_USUARIOS = ? AND TIPO = 18
+            WHERE ID_USUARIOS = ? AND TIPO = 2
         """, (id_usuarios,))
 
         ong = cur.fetchone()
@@ -376,7 +375,6 @@ def bloquear_ong(id_usuarios):
         if not ong:
             return jsonify({'error': 'ONG não encontrada'}), 404
 
-        # Define o novo status
         if acao == 'bloquear':
             novo_status = 0
             mensagem_status = 'bloqueada'
@@ -384,7 +382,6 @@ def bloquear_ong(id_usuarios):
             novo_status = 1
             mensagem_status = 'desbloqueada'
 
-        # Atualiza status
         cur.execute("""
             UPDATE USUARIOS
             SET ATIVO = ?
@@ -401,6 +398,7 @@ def bloquear_ong(id_usuarios):
 
     except Exception as e:
         con.rollback()
+        print(f"ERRO bloquear_ong: {e}")
         return jsonify({'error': f'Erro ao bloquear/desbloquear ONG: {str(e)}'}), 500
     finally:
         cur.close()
@@ -408,7 +406,7 @@ def bloquear_ong(id_usuarios):
 
 
 # ============================================
-# ROTA: Deletar ONG (ADMIN) - Apenas se bloqueada ou reprovada
+# ROTA: Deletar ONG (ADMIN)
 # ============================================
 @app.route('/admin/deletar_ong/<int:id_usuarios>', methods=['DELETE'])
 def deletar_ong(id_usuarios):
@@ -417,19 +415,16 @@ def deletar_ong(id_usuarios):
     cur = con.cursor()
 
     try:
-        # Verifica autenticação
         if decodificar_token() == False:
             return jsonify({'error': 'Token necessário'}), 401
 
-        # Verifica se é administrador
         if decodificar_token()['tipo'] != 0:
             return jsonify({'error': 'É necessário ser administrador para deletar ONGs'}), 403
 
-        # Busca a ONG
         cur.execute("""
             SELECT ID_USUARIOS, NOME, EMAIL, ATIVO, APROVACAO
             FROM USUARIOS
-            WHERE ID_USUARIOS = ? AND TIPO = 18
+            WHERE ID_USUARIOS = ? AND TIPO = 2
         """, (id_usuarios,))
 
         ong = cur.fetchone()
@@ -437,7 +432,6 @@ def deletar_ong(id_usuarios):
         if not ong:
             return jsonify({'error': 'ONG não encontrada'}), 404
 
-        # Verifica se pode ser deletada (bloqueada ou reprovada)
         if ong[3] == 1 and ong[4] != 2:
             return jsonify({
                 'error': 'Esta ONG não pode ser deletada. Apenas ONGs bloqueadas ou reprovadas podem ser removidas.',
@@ -447,11 +441,8 @@ def deletar_ong(id_usuarios):
                 }
             }), 403
 
-        # Remove registros relacionados
         cur.execute("DELETE FROM HISTORICO_SENHA WHERE ID_USUARIOS = ?", (id_usuarios,))
         cur.execute("DELETE FROM RECUPERACAO_SENHA WHERE ID_USUARIOS = ?", (id_usuarios,))
-
-        # Remove a ONG
         cur.execute("DELETE FROM USUARIOS WHERE ID_USUARIOS = ?", (id_usuarios,))
 
         con.commit()
@@ -463,6 +454,7 @@ def deletar_ong(id_usuarios):
 
     except Exception as e:
         con.rollback()
+        print(f"ERRO deletar_ong: {e}")
         return jsonify({'error': f'Erro ao deletar ONG: {str(e)}'}), 500
     finally:
         cur.close()
@@ -479,31 +471,26 @@ def editar_perfil_ong(id_usuarios):
     cur = con.cursor()
 
     try:
-        # Verifica autenticação
         token_data = decodificar_token()
         if token_data == False:
             return jsonify({'error': 'Token necessário'}), 401
 
-        # Verifica se é a própria ONG editando
         if token_data['id_usuarios'] != id_usuarios:
             return jsonify({'error': 'Você só pode editar seu próprio perfil'}), 403
 
-        # Verifica se o usuário é uma ONG
-        if token_data['tipo'] != 18:
+        if token_data['tipo'] != 2:
             return jsonify({'error': 'Apenas ONGs podem acessar esta rota'}), 403
 
-        # Busca dados atuais
         cur.execute("""
             SELECT *
             FROM USUARIOS
-            WHERE ID_USUARIOS = ? AND TIPO = 18
+            WHERE ID_USUARIOS = ? AND TIPO = 2
         """, (id_usuarios,))
 
         ong_atual = cur.fetchone()
         if not ong_atual:
             return jsonify({'error': 'ONG não encontrada'}), 404
 
-        # Pega os dados do formulário
         nome = request.form.get('nome', ong_atual[1])
         email = request.form.get('email', ong_atual[2])
         cpf_cnpj = request.form.get('cpf_cnpj', ong_atual[4])
@@ -520,7 +507,6 @@ def editar_perfil_ong(id_usuarios):
         senha = request.form.get('senha', None)
         confirmar_senha = request.form.get('confirmar_senha', None)
 
-        # Validações básicas
         if not nome or not nome.strip():
             return jsonify({'error': 'Nome é obrigatório'}), 400
 
@@ -530,7 +516,6 @@ def editar_perfil_ong(id_usuarios):
         if not cpf_cnpj or not cpf_cnpj.strip():
             return jsonify({'error': 'CPF/CNPJ é obrigatório'}), 400
 
-        # Trata senha se fornecida
         from flask_bcrypt import generate_password_hash
         from funcao import senha_forte, senha_correspondente, senha_antiga, verificar_existente
 
@@ -547,11 +532,9 @@ def editar_perfil_ong(id_usuarios):
 
             nova_senha_hash = generate_password_hash(senha).decode('utf-8')
 
-        # Mantém o status de confirmação de email
         email_confirmacao = ong_atual[19]
         codigo_confirmacao = ong_atual[20]
 
-        # Atualiza no banco
         cur.execute("""
             UPDATE USUARIOS
             SET NOME = ?,
@@ -602,6 +585,7 @@ def editar_perfil_ong(id_usuarios):
 
     except Exception as e:
         con.rollback()
+        print(f"ERRO editar_perfil_ong: {e}")
         return jsonify({'error': f'Erro ao editar perfil: {str(e)}'}), 500
     finally:
         cur.close()
