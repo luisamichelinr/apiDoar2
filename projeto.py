@@ -30,12 +30,34 @@ def criar_projetos():
         #     return jsonify({'error': 'Doadores não podem criar projetos'})
 
         # Verifica se o título está vazio
-        if titulo == None:
+        if titulo == '':
             return jsonify({"error": "Título é uma informação obrigatória."}), 400
 
         titulo_sem_espaços = titulo.strip()
         if titulo_sem_espaços == '':
             return jsonify({"error": "Título é uma informação obrigatória."}), 400
+
+        if descricao == '':
+            return jsonify({"error": "Descrição é uma informação obrigatória."}), 400
+
+        descricao_sem_espaços = descricao.strip()
+        if descricao_sem_espaços == '':
+            return jsonify({"error": "Descrição é uma informação obrigatória."}), 400
+
+
+        if categoria == "" or categoria == '':
+            return jsonify({'error': 'Escolha uma categoria'})
+
+        if status == "":
+            return jsonify({'error': 'Escolha um tipo de status'})
+
+        if tipo_ajuda == "":
+            return jsonify({"error": "Escolha um tipo de ajuda"}), 400
+
+        localizacao_sem_espaço = localizacao.strip()
+        if localizacao_sem_espaço == "":
+            localizacao = "Sem localização"
+
 
         id_usuarios = 14
 
@@ -70,6 +92,7 @@ def criar_projetos():
             foto_projeto.save(caminho_imagem)
 
         # Retorna sucesso com os dados do projeto
+        print("FOOI")
         return jsonify({'message': "Projeto cadastrado com sucesso",
                             'projeto': {
                                 'id_usuarios': id_usuarios,
@@ -137,10 +160,32 @@ def editar_projetos(id_projetos):
             foto_projeto = request.files.get('foto_projeto')
 
             # Verifica se o título está vazio
+            if titulo == '':
+                return jsonify({"error": "Título é uma informação obrigatória."}), 400
+
             titulo_sem_espaços = titulo.strip()
             if titulo_sem_espaços == '':
                 return jsonify({"error": "Título é uma informação obrigatória."}), 400
 
+            if descricao == '':
+                return jsonify({"error": "Descrição é uma informação obrigatória."}), 400
+
+            descricao_sem_espaços = descricao.strip()
+            if descricao_sem_espaços == '':
+                return jsonify({"error": "Descrição é uma informação obrigatória."}), 400
+
+            if categoria == "":
+                return jsonify({'error': 'Escolha uma categoria'})
+
+            if status == "":
+                return jsonify({'error': 'Escolha um tipo de status'})
+
+            if tipo_ajuda == "":
+                return jsonify({"error": "Escolha um tipo de ajuda"}), 400
+
+            localizacao_sem_espaço = localizacao.strip()
+            if localizacao_sem_espaço == "":
+                localizacao = "Sem localização"
 
             # Atualiza os dados do usuário no banco
             cur.execute("""UPDATE PROJETOS
@@ -403,12 +448,8 @@ def ver_projetos(id_projetos):
         con.close()
 
 # Criar atualização
-@app.route('/criar_atualizacoes', methods=['POST'])
+@app.route('/criar_atualizacoes', methods=['GET', 'POST'])
 def criar_atualizacoes():
-    titulo = request.form.get('titulo', None)
-    texto = request.form.get('texto', None)
-    id_projetos = request.form.get('projeto', None)
-    foto_atualizacao = request.files.get('foto_atualizacao')
 
     # Temos uma função para a conexão com o banco -> Precisamos chamá-la
     con = conexao()
@@ -417,78 +458,97 @@ def criar_atualizacoes():
     cur = con.cursor()
 
     try:
-        # if decodificar_token() == False:
-        #     return jsonify({'error': 'Você precisa estar logado para criar um projeto'})
-        #
-        # if decodificar_token()['tipo'] == 1:
-        #     return jsonify({'error': 'Doadores não podem criar projetos'})
+        if request.method == 'GET':
+            # if decodificar_token() == False:
+            #     return jsonify({'error': 'Você precisa estar logado para criar um projeto'})
+            #
+            # if decodificar_token()['tipo'] == 1:
+            #     return jsonify({'error': 'Doadores não podem criar projetos'})
 
-        if id_projetos == None:
-            return jsonify({"error": "Projeto é uma informação obrigatória."}), 400
+            cur.execute("""SELECT ID_PROJETOS, TITULO
+                           FROM PROJETOS""")
+            projetos = cur.fetchall()
 
-        cur.execute("""SELECT ID_USUARIOS
-                       FROM PROJETOS
-                       WHERE ID_PROJETOS = ?""", (id_projetos,))
-        projeto = cur.fetchone()
+            if not projetos:
+                return jsonify({'error': 'Nenhum projeto encontrado'})
 
-        if projeto == None:
-            return jsonify({"error": "Projeto não encontrado"}), 404
+            return jsonify({'message': "Projeto(s) encontrado(s) com sucesso",
+                            'projetos': projetos
+                            })
 
-        id_usuarios = projeto[0]
+        elif request.method == 'POST':
+            titulo = request.form.get('titulo', None)
+            texto = request.form.get('texto', None)
+            id_projetos = request.form.get('projeto', None)
+            foto_atualizacao = request.files.get('foto_atualizacao')
+            if id_projetos == None:
+                return jsonify({"error": "Projeto é uma informação obrigatória."}), 400
 
-        # if decodificar_token()['id_usuarios'] != id_usuarios and decodificar_token()['tipo'] != 0:
-        #     return jsonify({'error': 'É necessário ser a ONG do projeto ou o administrador para criar atualizações'}), 401
+            cur.execute("""SELECT ID_USUARIOS
+                           FROM PROJETOS
+                           WHERE ID_PROJETOS = ?""", (id_projetos,))
+            projeto = cur.fetchone()
 
-        # Verifica se o título está vazio
-        if titulo == None:
-            return jsonify({"error": "Título é uma informação obrigatória."}), 400
+            print(projeto)
 
-        titulo_sem_espaços = titulo.strip()
-        if titulo_sem_espaços == '':
-            return jsonify({"error": "Título é uma informação obrigatória."}), 400
+            if projeto == None:
+                return jsonify({"error": "Projeto não encontrado"}), 404
 
-        data = datetime.datetime.now()
+            id_usuarios = projeto[0]
 
-        # Insere o usuário no banco de dados
-        cur.execute("""INSERT INTO ATUALIZACOES (ID_PROJETOS, TITULO, TEXTO, DATA)
-                       VALUES (?, ?, ?, ?) RETURNING ID_ATUALIZACOES""",
-                    (id_projetos, titulo, texto, data))
+            # if decodificar_token()['id_usuarios'] != id_usuarios and decodificar_token()['tipo'] != 0:
+            #     return jsonify({'error': 'É necessário ser a ONG do projeto ou o administrador para criar atualizações'}), 401
 
-        # Recupera o ID do usuário recém criado
-        id_atualizacoes = cur.fetchone()[0]
+            # Verifica se o título está vazio
+            if titulo == None:
+                return jsonify({"error": "Título é uma informação obrigatória."}), 400
 
-        con.commit()
+            titulo_sem_espaços = titulo.strip()
+            if titulo_sem_espaços == '':
+                return jsonify({"error": "Título é uma informação obrigatória."}), 400
 
-        caminho_imagem_destino = None
+            data = datetime.datetime.now()
 
-        # Verifica se foi enviada uma foto de perfil
-        if foto_atualizacao:
-            # Define o nome da imagem com base no ID do usuário
-            nome_imagem = f'{id_atualizacoes}.jpeg'
+            # Insere o usuário no banco de dados
+            cur.execute("""INSERT INTO ATUALIZACOES (ID_PROJETOS, TITULO, TEXTO, DATA)
+                           VALUES (?, ?, ?, ?) RETURNING ID_ATUALIZACOES""",
+                        (id_projetos, titulo, texto, data))
 
-            # Define a pasta de destino
-            caminho_imagem_destino = os.path.join(app.config['UPLOAD_FOLDER'], "Atualizações")
+            # Recupera o ID do usuário recém criado
+            id_atualizacoes = cur.fetchone()[0]
 
-            # Cria a pasta caso não exista
-            os.makedirs(caminho_imagem_destino, exist_ok=True)
+            con.commit()
 
-            # Define o caminho completo da imagem
-            caminho_imagem = os.path.join(caminho_imagem_destino, nome_imagem)
+            caminho_imagem_destino = None
 
-            # Salva a imagem no diretório
-            foto_atualizacao.save(caminho_imagem)
+            # Verifica se foi enviada uma foto de perfil
+            if foto_atualizacao:
+                # Define o nome da imagem com base no ID do usuário
+                nome_imagem = f'{id_atualizacoes}.jpeg'
 
-        data = data.strftime("%d/%m/%Y às %H:%M")
+                # Define a pasta de destino
+                caminho_imagem_destino = os.path.join(app.config['UPLOAD_FOLDER'], "Atualizações")
 
-        # Retorna sucesso com os dados do projeto
-        return jsonify({'message': "Atualização cadastrada com sucesso",
-                            'atualizacao': {
-                                'id_projeto': id_projetos,
-                                'titulo': titulo,
-                                'texto': texto,
-                                'data': data
-                            }
-                            }), 201
+                # Cria a pasta caso não exista
+                os.makedirs(caminho_imagem_destino, exist_ok=True)
+
+                # Define o caminho completo da imagem
+                caminho_imagem = os.path.join(caminho_imagem_destino, nome_imagem)
+
+                # Salva a imagem no diretório
+                foto_atualizacao.save(caminho_imagem)
+
+            data = data.strftime("%d/%m/%Y às %H:%M")
+
+            # Retorna sucesso com os dados do projeto
+            return jsonify({'message': "Atualização cadastrada com sucesso",
+                                'atualizacao': {
+                                    'id_projeto': id_projetos,
+                                    'titulo': titulo,
+                                    'texto': texto,
+                                    'data': data
+                                }
+                                }), 201
     except Exception as e:
         return jsonify({'message': f'Erro ao consultar o banco de dados: {e}'}), 500
     finally:
